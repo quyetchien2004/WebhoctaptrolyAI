@@ -88,20 +88,11 @@ const createCourse = async (req, res) => {
       return res.status(400).json(apiResponse.validationError(errors.array()));
     }
 
-    //Xử lý file uploads
+    //Xử lý file uploads (đã được middleware upload gán URL Cloudinary vào req.body)
     let imageUrl = req.body.image;
     let videoUrl = req.body.video;
-    
-    if (req.files) {
-      if (req.files.image) {
-        imageUrl = `/uploads/images/${req.files.image[0].filename}`;
-      }
-      if (req.files.video) {
-        videoUrl = `/uploads/videos/${req.files.video[0].filename}`;
-      }
-    }
 
-    // Validate that image and video are provided (either file or URL)
+    // Validate that image and video are provided (either file được upload lên Cloudinary hoặc URL)
     if (!imageUrl) {
       return res.status(400).json(apiResponse.error('Hình ảnh khóa học là bắt buộc (file hoặc URL)'));
     }
@@ -167,17 +158,8 @@ const updateCourse = async (req, res) => {
       return res.status(404).json(apiResponse.error('Không tìm thấy khóa học'));
     }
 
-    // Handle file uploads
+    // Handle file uploads (URL đã được middleware upload xử lý)
     let updateData = { ...req.body };
-    
-    if (req.files) {
-      if (req.files.image) {
-        updateData.image = `/uploads/images/${req.files.image[0].filename}`;
-      }
-      if (req.files.video) {
-        updateData.video = `/uploads/videos/${req.files.video[0].filename}`;
-      }
-    }
 
     const updatedCourse = await Course.findByIdAndUpdate(
       req.params.id,

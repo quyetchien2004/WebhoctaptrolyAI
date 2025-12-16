@@ -1,6 +1,14 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const cloudinary = require('cloudinary').v2;
+
+// Cấu hình Cloudinary từ biến môi trường
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 // Tạo thư mục uploads nếu chưa tồn tại
 const createUploadsDirectory = () => {
@@ -154,36 +162,99 @@ const handleUploadError = (err, req, res, next) => {
   next();
 };
 
-// Middleware để tạo URL đầy đủ cho file
-const processFileUrls = (req, res, next) => {
-  if (req.files) {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    
-    if (req.files.image) {
-      req.body.image = `${baseUrl}/uploads/images/${req.files.image[0].filename}`;
-    }
-    
-    if (req.files.video) {
-      req.body.video = `${baseUrl}/uploads/videos/${req.files.video[0].filename}`;
-    }
-    
-    if (req.files.avatar) {
-      req.body.avatar = `${baseUrl}/uploads/images/${req.files.avatar[0].filename}`;
-    }
+// Upload file lên Cloudinary (helper)
+const uploadToCloudinary = async (filePath, folder, resourceType = 'image') => {
+  const options = {
+    folder,
+    resource_type: resourceType
+  };
+
+  const result = await cloudinary.uploader.upload(filePath, options);
+
+  // Xóa file local sau khi upload xong
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
   }
-  
-  // Xử lý single file upload
-  if (req.file) {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    
-    if (req.file.fieldname === 'avatar' || req.file.fieldname === 'image') {
-      req.body.avatar = `${baseUrl}/uploads/images/${req.file.filename}`;
-    } else if (req.file.fieldname === 'video') {
-      req.body.video = `${baseUrl}/uploads/videos/${req.file.filename}`;
+
+  return result.secure_url;
+};
+
+// Middleware để upload file lên Cloudinary và gắn URL vào req.body
+const processFileUrls = async (req, res, next) => {
+  try {
+    // Multiple files (image, avatar, video)
+    if (req.files) {
+      // Ảnh khóa học / avatar
+      if (req.files.image && req.files.image[0]) {
+        const imgFile = req.files.image[0];
+        const imgPath = imgFile.path;
+        const imageUrl = await uploadToCloudinary(
+          imgPath,
+          'courses/images',
+          'image'
+        );
+        req.body.image = imageUrl;
+      }
+
+      if (req.files.avatar && req.files.avatar[0]) {
+        const avatarFile = req.files.avatar[0];
+        const avatarPath = avatarFile.path;
+        const avatarUrl = await uploadToCloudinary(
+          avatarPath,
+          'avatars',
+          'image'
+        );
+        req.body.avatar = avatarUrl;
+      }
+
+      // Video khóa học
+      if (req.files.video && req.files.video[0]) {
+        const vidFile = req.files.video[0];
+        const vidPath = vidFile.path;
+        const videoUrl = await uploadToCloudinary(
+          vidPath,
+          'courses/videos',
+          'video'
+        );
+        req.body.video = videoUrl;
+      }
     }
+
+    // Single file upload
+    if (req.file && req.file.path) {
+      const file = req.file;
+      const filePath = file.path;
+
+      if (file.fieldname === 'avatar' || file.fieldname === 'image') {
+        const imageUrl = await uploadToCloudinary(
+          filePath,
+          file.fieldname === 'avatar' ? 'avatars' : 'courses/images',
+          'image'
+        );
+        if (file.fieldname === 'avatar') {
+          req.body.avatar = imageUrl;
+        } else {
+          req.body.image = imageUrl;
+        }
+      } else if (file.fieldname === 'video') {
+        const videoUrl = await uploadToCloudinary(
+          filePath,
+          'courses/videos',
+          'video'
+        );
+        req.body.video = videoUrl;
+      }
+    }
+
+    next();
+  } catch (error) {
+    console.error('Cloudinary upload error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi khi upload file lên Cloudinary',
+      error: error.message
+    });
   }
-  
-  next();
 };
 
 // Middleware để xóa file cũ khi upload file mới

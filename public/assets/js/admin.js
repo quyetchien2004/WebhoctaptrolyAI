@@ -2146,8 +2146,10 @@ async function createNewLesson(lessonData) {
             
             // Reset form and hide video preview
             document.getElementById('newLessonForm').reset();
-            document.getElementById('videoPreview').style.display = 'none';
-            document.getElementById('uploadProgress').style.display = 'none';
+            const lessonVideoPreview = document.getElementById('lessonVideoPreview');
+            const lessonUploadProgress = document.getElementById('lessonUploadProgress');
+            if (lessonVideoPreview) lessonVideoPreview.style.display = 'none';
+            if (lessonUploadProgress) lessonUploadProgress.style.display = 'none';
             
             // Refresh lessons list if available
             if (typeof AdminLessonManager !== 'undefined') {
@@ -2220,9 +2222,9 @@ async function createLessonWithVideoFile(formData) {
         }
         
         // Show progress
-        const progress = document.getElementById('uploadProgress');
-        const progressBar = document.getElementById('progressBar');
-        const progressText = document.getElementById('progressText');
+        const progress = document.getElementById('lessonUploadProgress');
+        const progressBar = document.getElementById('lessonProgressBar');
+        const progressText = document.getElementById('lessonProgressText');
         
         progress.style.display = 'block';
         progressBar.style.width = '10%';
@@ -2269,7 +2271,8 @@ async function createLessonWithVideoFile(formData) {
                         
                         // Reset form
                         document.getElementById('newLessonForm').reset();
-                        document.getElementById('videoPreview').style.display = 'none';
+                        const lessonVideoPreview = document.getElementById('lessonVideoPreview');
+                        if (lessonVideoPreview) lessonVideoPreview.style.display = 'none';
                         progress.style.display = 'none';
                         
                         // Refresh lessons list
@@ -2300,7 +2303,8 @@ async function createLessonWithVideoFile(formData) {
     } catch (error) {
         console.error('❌ Upload preparation error:', error);
         alert(`❌ Lỗi chuẩn bị upload: ${error.message}`);
-        document.getElementById('uploadProgress').style.display = 'none';
+        const lessonUploadProgress = document.getElementById('lessonUploadProgress');
+        if (lessonUploadProgress) lessonUploadProgress.style.display = 'none';
     }
 }
 
@@ -2605,8 +2609,8 @@ function toggleFormDebug() {
 // Video file handling functions
 function handleVideoFileSelect(event) {
     const file = event.target.files[0];
-    const preview = document.getElementById('videoPreview');
-    const info = document.getElementById('videoInfo');
+    const preview = document.getElementById('lessonVideoPreview');
+    const info = document.getElementById('lessonVideoInfo');
     
     if (!file) {
         preview.style.display = 'none';
