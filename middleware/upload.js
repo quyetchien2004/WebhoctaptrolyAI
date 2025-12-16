@@ -1,6 +1,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const cloudinary = require('cloudinary').v2;
 
 // Cấu hình Cloudinary từ biến môi trường
@@ -10,35 +11,52 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Tạo thư mục uploads nếu chưa tồn tại
-const createUploadsDirectory = () => {
-  const uploadsDir = path.join(__dirname, '..', 'uploads');
-  const imagesDir = path.join(uploadsDir, 'images');
-  const videosDir = path.join(uploadsDir, 'videos');
+// Thư mục gốc để lưu file tạm trước khi đẩy lên Cloudinary
+// Mặc định: /uploads (local dev). Trong môi trường serverless/read-only sẽ fallback sang thư mục tạm của hệ điều hành.
+let BASE_UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 
-  [uploadsDir, imagesDir, videosDir].forEach(dir => {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-  });
+const createUploadsDirectory = () => {
+  try {
+    const uploadsDir = BASE_UPLOAD_DIR;
+    const imagesDir = path.join(uploadsDir, 'images');
+    const videosDir = path.join(uploadsDir, 'videos');
+
+    [uploadsDir, imagesDir, videosDir].forEach(dir => {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+    });
+  } catch (error) {
+    // Nếu không tạo được (ví dụ: môi trường serverless chỉ cho ghi /tmp), fallback sang thư mục tạm
+    console.warn('⚠️ Không thể tạo thư mục uploads, chuyển sang dùng thư mục tạm của hệ điều hành:', error.message);
+    BASE_UPLOAD_DIR = os.tmpdir();
+  }
 };
 
-// Tạo thư mục uploads
+// Tạo thư mục uploads (hoặc fallback sang thư mục tạm nếu cần)
 createUploadsDirectory();
 
 // Cấu hình storage cho multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    let uploadPath = '';
-    
+    let uploadPath = BASE_UPLOAD_DIR;
+
     if (file.fieldname === 'image' || file.fieldname === 'avatar') {
-      uploadPath = path.join(__dirname, '..', 'uploads', 'images');
+      uploadPath = path.join(BASE_UPLOAD_DIR, 'images');
     } else if (file.fieldname === 'video') {
-      uploadPath = path.join(__dirname, '..', 'uploads', 'videos');
-    } else {
-      uploadPath = path.join(__dirname, '..', 'uploads');
+      uploadPath = path.join(BASE_UPLOAD_DIR, 'videos');
     }
-    
+
+    // Đảm bảo thư mục tồn tại (an toàn cả khi BASE_UPLOAD_DIR là thư mục tạm)
+    try {
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+    } catch (error) {
+      console.warn('⚠️ Không thể tạo thư mục upload cụ thể, dùng thư mục tạm:', error.message);
+      uploadPath = os.tmpdir();
+    }
+
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
